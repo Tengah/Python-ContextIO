@@ -184,15 +184,15 @@ class ContextIO(object):
             exceptions."""
         response_json = response.json()
         if 'code' in response_json and 'value' in response_json:
-            raise Exception(
-                'HTTP %s: %s' % (
+            raise HttpException(
+                'HTTP status=%d, code=%s: value=%s' % (
                     response_json['code'],
                     response_json['value']
                 )
             )
         elif 'type' in response_json and 'value' in response_json:
-            raise Exception(
-                '%s: %s' % (
+            raise HttpException(
+                'status =%d, type=%s: %s' % (
                     response_json['type'],
                     response_json['value']
                 )
