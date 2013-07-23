@@ -134,22 +134,42 @@ class ContextIO(object):
             typically, JSON - depends on the API call, refer to the other 
                 method docstrings for more details.
         """
+        response = self._request_uri_response(uri, method, params, headers, body)
+        # look for a ValueError
+        try:
+            return response.json()
+        except UnicodeDecodeError:
+            return response.content
+        except ValueError:
+            return response.text
+
+
+    def _request_uri_response(self, uri, method="GET", params={}, headers={}, body='', stream=False):
+        """Assembles the request uri and calls the request method.
+        
+        Required Arguments:
+            uri: string - the assembled API endpoint.
+        
+        Optional Parameters:
+            method: string - the method of the request. Possible values are 
+                'GET', 'POST', 'DELETE', 'PUT'
+            params: dict - parameters to pass along
+            headers: dict - any specific http headers
+            body: string - request body, only used on a few PUT statements
+        
+        Returns:
+            a stream of the result
+        """
         url = '/'.join((self.url_base, self.version, uri))
-        response = self._request(url, method, params, headers, body)
+        response = self._request(url, method, params, headers, body, stream=stream)
         status = response.status_code
         
         if status >= 200 and status < 300:
-            # look for a ValueError
-            try:
-                return response.json()
-            except UnicodeDecodeError:
-                return response.content
-            except ValueError:
-                return response.text
+            return response
         else:
             self._handle_request_error(response)
 
-    def _request(self, url, method, params, headers={}, body=''):
+    def _request(self, url, method, params, headers={}, body='', **kwargs):
         """This method actually makes the request using the oauth client.
         
         Required Arguments:
@@ -173,7 +193,7 @@ class ContextIO(object):
             params['body'] = body
             response = session.request(method, url, header_auth=True, data=params, headers=headers)
         else:
-            response = session.request(method, url, header_auth=True, params=params, headers=headers, data=body)
+            response = session.request(method, url, header_auth=True, params=params, headers=headers, data=body, **kwargs)
 
         self._debug(response)
 
@@ -480,6 +500,18 @@ class Resource(object):
         return self.parent._request_uri(
             uri, method=method, params=params, headers=headers, body=body
         )
+        
+    def _request_uri_response(self, uri_elems, **kwargs):
+        """Gathers up request elements and helps form the request object.
+        
+        Required Arguments:
+            uri_elems: list - list of strings, joined to form the endpoint.
+        
+        Optional Arguments:
+            same as _request_uri()
+        """
+        uri = self._uri_for(uri_elems)
+        return self.parent._request_uri_response(uri, **kwargs)
         
     @staticmethod
     def sanitize_params(params, all_args, required_args=None):
@@ -1583,6 +1615,17 @@ class File(Resource):
             headers = {}
 
         return self._request_uri('content', headers=headers)
+
+    def get_content_response(self):
+        """Download a file.
+        
+        Documentation: http://context.io/docs/2.0/accounts/files/content
+        
+        Returns:
+            an HTTPReponse
+        """
+
+        return self._request_uri_response('content')
 
     def get_related(self):
         """Get list of other files related to a given file.
